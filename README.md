@@ -1,6 +1,31 @@
 # RxAnnotations: Annotations for RxJava
 Generating observables & singles using annotations.
  
+# Getting started
+
+The first step is to include RxAnnotations into your project, for example, as a Gradle compile dependency:
+```
+provided 'com.juliusscript.rxannotation:rxannotations:0.0.1'
+apt 'com.juliusscript.rxannotation:rxannotations:0.0.1'
+//or
+annotationProcessor 'com.juliusscript.rxannotation:rxannotations:0.0.1'
+```
+
+If you haven't yet include RxJava and/or RxAndroid:
+```
+compile 'io.reactivex.rxjava2:rxandroid:2.0.1'
+compile 'io.reactivex.rxjava2:rxjava:2.1.0'
+```
+
+As Maven dependency:
+```
+<dependency>
+  <groupId>com.juliusscript.rxannotation</groupId>
+  <artifactId>rxannotations</artifactId>
+  <version>0.0.1</version>
+  <type>pom</type>
+</dependency>
+```
  
 ## LICENSE
 
