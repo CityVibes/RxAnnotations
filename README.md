@@ -40,6 +40,7 @@ public class Api {
 
     @RxObservable(defer = true)
     public Integer getInteger() {
+        //could be network request or anything that shouldn't run on main thread
         return 55;
     }
 
