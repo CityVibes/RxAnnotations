@@ -5,7 +5,6 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
@@ -29,7 +28,6 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.ElementFilter;
 
 import io.reactivex.BackpressureStrategy;
@@ -157,65 +155,51 @@ public class RxProcessor extends AbstractProcessor {
     }
 
     private MethodSpec createRxObservableMethods(ExecutableElement executableElement) {
-        String methodName = executableElement.getSimpleName().toString();
         TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        ClassName observable = ClassName.get(Observable.class);
-        TypeName observableReturn = ParameterizedTypeName.get(observable, returnClass);
         RxObservable rxObservable = executableElement.getAnnotation(RxObservable.class);
-
-        //create new reactive method
-        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName + "Rx")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(observableReturn);
-
-        List<String> parameters = new ArrayList<String>();
-        for (VariableElement variableElement : executableElement.getParameters()) {
-            ParameterSpec.Builder paramBuilder = ParameterSpec.builder(ClassName
-                    .get(variableElement.asType()), variableElement.getSimpleName().toString())
-                    .addModifiers(Modifier.FINAL);
-            methodBuilder.addParameter(paramBuilder.build());
-            parameters.add(variableElement.getSimpleName().toString());
-        }
-        TypeSpec onSubscribe = buildObservable(executableElement, parameters);
+        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Observable.class);
+        TypeSpec onSubscribe = buildObservable(executableElement, methodData.second);
 
         if (rxObservable.defer()) {
-            wrapWithDefer(methodBuilder, buildCallable(returnClass, onSubscribe),
+            wrapWithDefer(methodData.first, buildCallable(returnClass, onSubscribe),
                     getScheduler(rxObservable.subscribeOn()), getScheduler(rxObservable.observeOn()));
         } else {
-            methodBuilder.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
+            methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
                     Observable.class, onSubscribe, getScheduler(rxObservable.subscribeOn()),
                     getScheduler(rxObservable.observeOn()));
 
         }
-        return methodBuilder.build();
+        return methodData.first.build();
     }
 
     private MethodSpec createRxFlowableMethods(ExecutableElement executableElement) {
-        String methodName = executableElement.getSimpleName().toString();
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        ClassName flowable = ClassName.get(Flowable.class);
-        TypeName flowableReturn = ParameterizedTypeName.get(flowable, returnClass);
         RxFlowable rxFlowable = executableElement.getAnnotation(RxFlowable.class);
+        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Flowable.class);
+        TypeSpec onSubscribe = buildFlowable(executableElement, methodData.second);
 
-        //create new reactive method
-        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName + "Rx")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(flowableReturn);
-
-        List<String> parameters = new ArrayList<String>();
-        for (VariableElement variableElement : executableElement.getParameters()) {
-            ParameterSpec.Builder paramBuilder = ParameterSpec.builder(ClassName
-                    .get(variableElement.asType()), variableElement.getSimpleName().toString())
-                    .addModifiers(Modifier.FINAL);
-            methodBuilder.addParameter(paramBuilder.build());
-            parameters.add(variableElement.getSimpleName().toString());
-        }
-        TypeSpec onSubscribe = buildFlowable(executableElement, parameters);
-
-        methodBuilder.addStatement("return $T.create($L, $T.$L).subscribeOn($N).observeOn($N)",
+        methodData.first.addStatement("return $T.create($L, $T.$L).subscribeOn($N).observeOn($N)",
                 Flowable.class, onSubscribe, BackpressureStrategy.class, rxFlowable.backpressure(), getScheduler(rxFlowable.subscribeOn()),
                 getScheduler(rxFlowable.observeOn()));
-        return methodBuilder.build();
+        return methodData.first.build();
+    }
+
+    private MethodSpec createRxSingleMethods(ExecutableElement executableElement) {
+        TypeName returnClass = ClassName.get(executableElement.getReturnType());
+        RxSingle rxSingle = executableElement.getAnnotation(RxSingle.class);
+        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Single.class);
+
+        TypeSpec onSubscribe = buildSingle(executableElement, methodData.second);
+
+        if (rxSingle.defer()) {
+            wrapWithDefer(methodData.first, buildCallable(returnClass, onSubscribe),
+                    getScheduler(rxSingle.subscribeOn()), getScheduler(rxSingle.observeOn()));
+        } else {
+            methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
+                    Single.class, onSubscribe, getScheduler(rxSingle.subscribeOn()),
+                    getScheduler(rxSingle.observeOn()));
+
+        }
+        return methodData.first.build();
     }
 
     private TypeSpec buildFlowable(ExecutableElement executableElement, List<String> parameters) {
@@ -254,40 +238,6 @@ public class RxProcessor extends AbstractProcessor {
                         .endControlFlow()
                         .build())
                 .build();
-    }
-
-    private MethodSpec createRxSingleMethods(ExecutableElement executableElement) {
-        String methodName = executableElement.getSimpleName().toString();
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        ClassName single = ClassName.get(Single.class);
-        TypeName singleReturn = ParameterizedTypeName.get(single, returnClass);
-        RxSingle rxSingle = executableElement.getAnnotation(RxSingle.class);
-
-        //create new reactive method
-        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName + "Rx")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(singleReturn);
-
-        List<String> parameters = new ArrayList<String>();
-        for (VariableElement variableElement : executableElement.getParameters()) {
-            ParameterSpec.Builder paramBuilder = ParameterSpec.builder(ClassName
-                    .get(variableElement.asType()), variableElement.getSimpleName().toString())
-                    .addModifiers(Modifier.FINAL);
-            methodBuilder.addParameter(paramBuilder.build());
-            parameters.add(variableElement.getSimpleName().toString());
-        }
-        TypeSpec onSubscribe = buildSingle(executableElement, parameters);
-
-        if (rxSingle.defer()) {
-            wrapWithDefer(methodBuilder, buildCallable(returnClass, onSubscribe),
-                    getScheduler(rxSingle.subscribeOn()), getScheduler(rxSingle.observeOn()));
-        } else {
-            methodBuilder.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
-                    Single.class, onSubscribe, getScheduler(rxSingle.subscribeOn()),
-                    getScheduler(rxSingle.observeOn()));
-
-        }
-        return methodBuilder.build();
     }
 
     private TypeSpec buildSingle(ExecutableElement executableElement, List<String> parameters) {
