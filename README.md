@@ -52,7 +52,7 @@ public class Api {
 
 `@Singleton` Creates, well...singleton of annotated class.
 
-In order to produce Observables and Singles class has to be annoted as `@RxClass`.
+In order to produce Observables and Singles class has to be annotated as `@RxClass`.
 
 Code generated from above annotation could be referenced in old way and as observables or singles.
 
