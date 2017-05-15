@@ -32,6 +32,10 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.ElementFilter;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.FlowableEmitter;
+import io.reactivex.FlowableOnSubscribe;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
@@ -45,7 +49,8 @@ import io.reactivex.schedulers.Schedulers;
  * Created by Julius.
  */
 @AutoService(Processor.class)
-@SupportedAnnotationTypes({"com.juliusscript.rxannotation.RxObservable", "com.juliusscript.rxannotation.RxClass"})
+@SupportedAnnotationTypes({"com.juliusscript.rxannotation.RxObservable", "com.juliusscript.rxannotation.RxSingle",
+        "com.juliusscript.rxannotation.RxFlowable", "com.juliusscript.rxannotation.RxClass"})
 public class RxProcessor extends AbstractProcessor {
 
     @Override
@@ -56,14 +61,16 @@ public class RxProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         Collection<? extends Element> annotatedSingleElements = roundEnvironment.getElementsAnnotatedWith(RxSingle.class);
+        Collection<? extends Element> annotatedFlowableElements = roundEnvironment.getElementsAnnotatedWith(RxFlowable.class);
         Collection<? extends Element> annotatedObservableElements = roundEnvironment.getElementsAnnotatedWith(RxObservable.class);
         Collection<? extends Element> annotatedClassElements = roundEnvironment.getElementsAnnotatedWith(RxClass.class);
         List<ExecutableElement> observableTypes = ElementFilter.methodsIn(annotatedObservableElements);
         List<ExecutableElement> singleTypes = ElementFilter.methodsIn(annotatedSingleElements);
+        List<ExecutableElement> flowableTypes = ElementFilter.methodsIn(annotatedFlowableElements);
 
         for (Element typeElement : annotatedClassElements) {
             if (typeElement.getKind() == ElementKind.CLASS) {
-                createRxClass(typeElement, observableTypes, singleTypes);
+                createRxClass(typeElement, observableTypes, singleTypes, flowableTypes);
             }
         }
         return true;
@@ -85,7 +92,8 @@ public class RxProcessor extends AbstractProcessor {
                 .build();
     }
 
-    private void createRxClass(Element typeElement, List<ExecutableElement> observableTypes, List<ExecutableElement> singleTypes) {
+    private void createRxClass(Element typeElement, List<ExecutableElement> observableTypes,
+                               List<ExecutableElement> singleTypes, List<ExecutableElement> flowableTypes) {
         PackageElement packageElement = (PackageElement) typeElement.getEnclosingElement();
         String packageName = packageElement.getQualifiedName().toString();
         String className = typeElement.getSimpleName().toString();
@@ -96,6 +104,9 @@ public class RxProcessor extends AbstractProcessor {
         }
         for (ExecutableElement executableElement : singleTypes) {
             methodSpecs.add(createRxSingleMethods(executableElement));
+        }
+        for (ExecutableElement executableElement : flowableTypes) {
+            methodSpecs.add(createRxFlowableMethods(executableElement));
         }
         //create class
         TypeSpec.Builder rxClassBuilder = TypeSpec.classBuilder("Rx" + className)
@@ -177,6 +188,72 @@ public class RxProcessor extends AbstractProcessor {
 
         }
         return methodBuilder.build();
+    }
+
+    private MethodSpec createRxFlowableMethods(ExecutableElement executableElement) {
+        String methodName = executableElement.getSimpleName().toString();
+        TypeName returnClass = ClassName.get(executableElement.getReturnType());
+        ClassName flowable = ClassName.get(Flowable.class);
+        TypeName flowableReturn = ParameterizedTypeName.get(flowable, returnClass);
+        RxFlowable rxFlowable = executableElement.getAnnotation(RxFlowable.class);
+
+        //create new reactive method
+        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName + "Rx")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(flowableReturn);
+
+        List<String> parameters = new ArrayList<String>();
+        for (VariableElement variableElement : executableElement.getParameters()) {
+            ParameterSpec.Builder paramBuilder = ParameterSpec.builder(ClassName
+                    .get(variableElement.asType()), variableElement.getSimpleName().toString())
+                    .addModifiers(Modifier.FINAL);
+            methodBuilder.addParameter(paramBuilder.build());
+            parameters.add(variableElement.getSimpleName().toString());
+        }
+        TypeSpec onSubscribe = buildFlowable(executableElement, parameters);
+
+        methodBuilder.addStatement("return $T.create($L, $T.$L).subscribeOn($N).observeOn($N)",
+                Flowable.class, onSubscribe, BackpressureStrategy.class, rxFlowable.backpressure(), getScheduler(rxFlowable.subscribeOn()),
+                getScheduler(rxFlowable.observeOn()));
+        return methodBuilder.build();
+    }
+
+    private TypeSpec buildFlowable(ExecutableElement executableElement, List<String> parameters) {
+        String methodName = executableElement.getSimpleName().toString();
+        TypeName returnClass = ClassName.get(executableElement.getReturnType());
+
+        StringBuilder methodCall = new StringBuilder(methodName + "(");
+        for (int i = 0; i < parameters.size(); i++) {
+            methodCall.append(parameters.get(i));
+            if (i != parameters.size() - 1) {
+                methodCall.append(", ");
+            }
+        }
+        methodCall.append(")");
+
+        //anonymous flowable creation
+        return TypeSpec.anonymousClassBuilder("")
+                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(FlowableOnSubscribe.class),
+                        returnClass))
+                .addMethod(MethodSpec.methodBuilder("subscribe")
+                        .addAnnotation(Override.class)
+                        .addModifiers(Modifier.PUBLIC)
+                        .addParameter(ParameterizedTypeName.get(ClassName.get(FlowableEmitter.class),
+                                returnClass), "emitter")
+                        .beginControlFlow("try")
+                        .addStatement(returnClass.toString() + " result = " + methodCall.toString())
+                        .beginControlFlow("if (result !=null)")
+                        .addStatement("emitter.onNext(result)")
+                        .endControlFlow()
+                        .endControlFlow()
+                        .beginControlFlow("catch(Exception ex)")
+                        .addStatement("emitter.onError(ex)")
+                        .endControlFlow()
+                        .beginControlFlow("finally")
+                        .addStatement("emitter.onComplete()")
+                        .endControlFlow()
+                        .build())
+                .build();
     }
 
     private MethodSpec createRxSingleMethods(ExecutableElement executableElement) {
