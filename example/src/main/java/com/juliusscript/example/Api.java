@@ -1,9 +1,10 @@
 package com.juliusscript.example;
 
-import com.juliusscript.rxannotation.RxClass;
-import com.juliusscript.rxannotation.RxObservable;
-import com.juliusscript.rxannotation.RxSingle;
-import com.juliusscript.rxannotation.RxFlowable;
+import com.juliusscript.rxannotation.annotations.RxClass;
+import com.juliusscript.rxannotation.annotations.RxMaybe;
+import com.juliusscript.rxannotation.annotations.RxObservable;
+import com.juliusscript.rxannotation.annotations.RxSingle;
+import com.juliusscript.rxannotation.annotations.RxFlowable;
 
 import javax.inject.Singleton;
 
@@ -35,5 +36,14 @@ public class Api {
     @RxFlowable(backpressure = BackpressureStrategy.ERROR)
     public Object getObject() {
         return new Object();
+    }
+
+    @RxMaybe
+    public Integer maybe() {
+        if (BuildConfig.DEBUG) {
+            return 1;
+        } else {
+            return 0;
+        }
     }
 }

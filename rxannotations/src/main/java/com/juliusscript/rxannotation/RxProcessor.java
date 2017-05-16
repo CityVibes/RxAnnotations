@@ -1,12 +1,15 @@
 package com.juliusscript.rxannotation;
 
 import com.google.auto.service.AutoService;
+import com.juliusscript.rxannotation.annotations.RxClass;
+import com.juliusscript.rxannotation.annotations.RxFlowable;
+import com.juliusscript.rxannotation.annotations.RxMaybe;
+import com.juliusscript.rxannotation.annotations.RxObservable;
+import com.juliusscript.rxannotation.annotations.RxSingle;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
-import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import java.io.IOException;
@@ -14,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
@@ -30,25 +32,13 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.ElementFilter;
 
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Flowable;
-import io.reactivex.FlowableEmitter;
-import io.reactivex.FlowableOnSubscribe;
-import io.reactivex.Observable;
-import io.reactivex.ObservableEmitter;
-import io.reactivex.ObservableOnSubscribe;
-import io.reactivex.ObservableSource;
-import io.reactivex.Single;
-import io.reactivex.SingleEmitter;
-import io.reactivex.SingleOnSubscribe;
-import io.reactivex.schedulers.Schedulers;
-
 /**
  * Created by Julius.
  */
 @AutoService(Processor.class)
-@SupportedAnnotationTypes({"com.juliusscript.rxannotation.RxObservable", "com.juliusscript.rxannotation.RxSingle",
-        "com.juliusscript.rxannotation.RxFlowable", "com.juliusscript.rxannotation.RxClass"})
+@SupportedAnnotationTypes({"com.juliusscript.rxannotation.annotations.RxObservable", "com.juliusscript.rxannotation.annotations.RxSingle",
+        "com.juliusscript.rxannotation.annotations.RxFlowable", "com.juliusscript.rxannotation.annotations.RxClass",
+        "com.juliusscript.rxannotation.annotations.RxMaybe"})
 public class RxProcessor extends AbstractProcessor {
 
     @Override
@@ -58,54 +48,47 @@ public class RxProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
-        Collection<? extends Element> annotatedSingleElements = roundEnvironment.getElementsAnnotatedWith(RxSingle.class);
-        Collection<? extends Element> annotatedFlowableElements = roundEnvironment.getElementsAnnotatedWith(RxFlowable.class);
-        Collection<? extends Element> annotatedObservableElements = roundEnvironment.getElementsAnnotatedWith(RxObservable.class);
         Collection<? extends Element> annotatedClassElements = roundEnvironment.getElementsAnnotatedWith(RxClass.class);
-        List<ExecutableElement> observableTypes = ElementFilter.methodsIn(annotatedObservableElements);
-        List<ExecutableElement> singleTypes = ElementFilter.methodsIn(annotatedSingleElements);
-        List<ExecutableElement> flowableTypes = ElementFilter.methodsIn(annotatedFlowableElements);
 
         for (Element typeElement : annotatedClassElements) {
             if (typeElement.getKind() == ElementKind.CLASS) {
-                createRxClass(typeElement, observableTypes, singleTypes, flowableTypes);
+                createRxClass(typeElement, getMethodSpecs(roundEnvironment));
             }
         }
         return true;
     }
 
-    private TypeSpec buildCallable(TypeName returnClass, Object onSubscribe) {
-        //anonymous observable creation
-        return TypeSpec.anonymousClassBuilder("")
-                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(Callable.class),
-                        ParameterizedTypeName.get(ClassName.get(ObservableSource.class), returnClass)))
-                .addMethod(MethodSpec.methodBuilder("call")
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC)
-                        .addException(Exception.class)
-                        .returns(ParameterizedTypeName.get(ClassName.get(ObservableSource.class), returnClass))
-                        .addStatement("return $T.create($L)", Observable.class,
-                                onSubscribe)
-                        .build())
-                .build();
-    }
-
-    private void createRxClass(Element typeElement, List<ExecutableElement> observableTypes,
-                               List<ExecutableElement> singleTypes, List<ExecutableElement> flowableTypes) {
-        PackageElement packageElement = (PackageElement) typeElement.getEnclosingElement();
-        String packageName = packageElement.getQualifiedName().toString();
-        String className = typeElement.getSimpleName().toString();
+    private List<MethodSpec> getMethodSpecs(RoundEnvironment roundEnvironment) {
+        Collection<? extends Element> annotatedSingleElements = roundEnvironment.getElementsAnnotatedWith(RxSingle.class);
+        Collection<? extends Element> annotatedFlowableElements = roundEnvironment.getElementsAnnotatedWith(RxFlowable.class);
+        Collection<? extends Element> annotatedObservableElements = roundEnvironment.getElementsAnnotatedWith(RxObservable.class);
+        Collection<? extends Element> annotatedMaybeElements = roundEnvironment.getElementsAnnotatedWith(RxMaybe.class);
+        List<ExecutableElement> observableTypes = ElementFilter.methodsIn(annotatedObservableElements);
+        List<ExecutableElement> singleTypes = ElementFilter.methodsIn(annotatedSingleElements);
+        List<ExecutableElement> flowableTypes = ElementFilter.methodsIn(annotatedFlowableElements);
+        List<ExecutableElement> maybeTypes = ElementFilter.methodsIn(annotatedMaybeElements);
         List<MethodSpec> methodSpecs = new ArrayList<MethodSpec>();
 
         for (ExecutableElement executableElement : observableTypes) {
-            methodSpecs.add(createRxObservableMethods(executableElement));
+            methodSpecs.add(RxObservableCreator.createRxObservableMethods(executableElement));
         }
         for (ExecutableElement executableElement : singleTypes) {
-            methodSpecs.add(createRxSingleMethods(executableElement));
+            methodSpecs.add(RxSingleCreator.createRxSingleMethods(executableElement));
         }
         for (ExecutableElement executableElement : flowableTypes) {
-            methodSpecs.add(createRxFlowableMethods(executableElement));
+            methodSpecs.add(RxFlowableCreator.createRxFlowableMethods(executableElement));
         }
+        for (ExecutableElement executableElement : maybeTypes) {
+            methodSpecs.add(RxMaybeCreator.createRxMaybeMethods(executableElement));
+        }
+        return methodSpecs;
+    }
+
+    private void createRxClass(Element typeElement, List<MethodSpec> methodSpecs) {
+        PackageElement packageElement = (PackageElement) typeElement.getEnclosingElement();
+        String packageName = packageElement.getQualifiedName().toString();
+        String className = typeElement.getSimpleName().toString();
+
         //create class
         TypeSpec.Builder rxClassBuilder = TypeSpec.classBuilder("Rx" + className)
                 .superclass(ClassName.get(packageName, className))
@@ -152,190 +135,6 @@ public class RxProcessor extends AbstractProcessor {
         constructorBuilder.addStatement("$N", "super()");
         return constructorBuilder
                 .build();
-    }
-
-    private MethodSpec createRxObservableMethods(ExecutableElement executableElement) {
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        RxObservable rxObservable = executableElement.getAnnotation(RxObservable.class);
-        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Observable.class);
-        TypeSpec onSubscribe = buildObservable(executableElement, methodData.second);
-
-        if (rxObservable.defer()) {
-            wrapWithDefer(methodData.first, buildCallable(returnClass, onSubscribe),
-                    getScheduler(rxObservable.subscribeOn()), getScheduler(rxObservable.observeOn()));
-        } else {
-            methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
-                    Observable.class, onSubscribe, getScheduler(rxObservable.subscribeOn()),
-                    getScheduler(rxObservable.observeOn()));
-
-        }
-        return methodData.first.build();
-    }
-
-    private MethodSpec createRxFlowableMethods(ExecutableElement executableElement) {
-        RxFlowable rxFlowable = executableElement.getAnnotation(RxFlowable.class);
-        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Flowable.class);
-        TypeSpec onSubscribe = buildFlowable(executableElement, methodData.second);
-
-        methodData.first.addStatement("return $T.create($L, $T.$L).subscribeOn($N).observeOn($N)",
-                Flowable.class, onSubscribe, BackpressureStrategy.class, rxFlowable.backpressure(), getScheduler(rxFlowable.subscribeOn()),
-                getScheduler(rxFlowable.observeOn()));
-        return methodData.first.build();
-    }
-
-    private MethodSpec createRxSingleMethods(ExecutableElement executableElement) {
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        RxSingle rxSingle = executableElement.getAnnotation(RxSingle.class);
-        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Single.class);
-
-        TypeSpec onSubscribe = buildSingle(executableElement, methodData.second);
-
-        if (rxSingle.defer()) {
-            wrapWithDefer(methodData.first, buildCallable(returnClass, onSubscribe),
-                    getScheduler(rxSingle.subscribeOn()), getScheduler(rxSingle.observeOn()));
-        } else {
-            methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
-                    Single.class, onSubscribe, getScheduler(rxSingle.subscribeOn()),
-                    getScheduler(rxSingle.observeOn()));
-
-        }
-        return methodData.first.build();
-    }
-
-    private TypeSpec buildFlowable(ExecutableElement executableElement, List<String> parameters) {
-        String methodName = executableElement.getSimpleName().toString();
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-
-        StringBuilder methodCall = new StringBuilder(methodName + "(");
-        for (int i = 0; i < parameters.size(); i++) {
-            methodCall.append(parameters.get(i));
-            if (i != parameters.size() - 1) {
-                methodCall.append(", ");
-            }
-        }
-        methodCall.append(")");
-
-        //anonymous flowable creation
-        return TypeSpec.anonymousClassBuilder("")
-                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(FlowableOnSubscribe.class),
-                        returnClass))
-                .addMethod(MethodSpec.methodBuilder("subscribe")
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(ParameterizedTypeName.get(ClassName.get(FlowableEmitter.class),
-                                returnClass), "emitter")
-                        .beginControlFlow("try")
-                        .addStatement(returnClass.toString() + " result = " + methodCall.toString())
-                        .beginControlFlow("if (result !=null)")
-                        .addStatement("emitter.onNext(result)")
-                        .endControlFlow()
-                        .endControlFlow()
-                        .beginControlFlow("catch(Exception ex)")
-                        .addStatement("emitter.onError(ex)")
-                        .endControlFlow()
-                        .beginControlFlow("finally")
-                        .addStatement("emitter.onComplete()")
-                        .endControlFlow()
-                        .build())
-                .build();
-    }
-
-    private TypeSpec buildSingle(ExecutableElement executableElement, List<String> parameters) {
-        String methodName = executableElement.getSimpleName().toString();
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-
-        StringBuilder methodCall = new StringBuilder(methodName + "(");
-        for (int i = 0; i < parameters.size(); i++) {
-            methodCall.append(parameters.get(i));
-            if (i != parameters.size() - 1) {
-                methodCall.append(", ");
-            }
-        }
-        methodCall.append(")");
-
-        //anonymous observable creation
-        return TypeSpec.anonymousClassBuilder("")
-                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(SingleOnSubscribe.class),
-                        returnClass))
-                .addMethod(MethodSpec.methodBuilder("subscribe")
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(ParameterizedTypeName.get(ClassName.get(SingleEmitter.class),
-                                returnClass), "emitter")
-                        .beginControlFlow("try")
-                        .addStatement(returnClass.toString() + " result = " + methodCall.toString())
-                        .beginControlFlow("if (result !=null)")
-                        .addStatement("emitter.onSuccess(result)")
-                        .endControlFlow()
-                        .endControlFlow()
-                        .beginControlFlow("catch(Exception ex)")
-                        .addStatement("emitter.onError(ex)")
-                        .endControlFlow()
-                        .build())
-                .build();
-    }
-
-    private TypeSpec buildObservable(ExecutableElement executableElement, List<String> parameters) {
-        String methodName = executableElement.getSimpleName().toString();
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-
-        StringBuilder methodCall = new StringBuilder(methodName + "(");
-        for (int i = 0; i < parameters.size(); i++) {
-            methodCall.append(parameters.get(i));
-            if (i != parameters.size() - 1) {
-                methodCall.append(", ");
-            }
-        }
-        methodCall.append(")");
-
-        //anonymous observable creation
-        return TypeSpec.anonymousClassBuilder("")
-                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(ObservableOnSubscribe.class),
-                        returnClass))
-                .addMethod(MethodSpec.methodBuilder("subscribe")
-                        .addAnnotation(Override.class)
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(ParameterizedTypeName.get(ClassName.get(ObservableEmitter.class),
-                                returnClass), "emitter")
-                        .beginControlFlow("try")
-                        .addStatement(returnClass.toString() + " result = " + methodCall.toString())
-                        .beginControlFlow("if (result !=null)")
-                        .addStatement("emitter.onNext(result)")
-                        .endControlFlow()
-                        .endControlFlow()
-                        .beginControlFlow("catch(Exception ex)")
-                        .addStatement("emitter.onError(ex)")
-                        .endControlFlow()
-                        .beginControlFlow("finally")
-                        .addStatement("emitter.onComplete()")
-                        .endControlFlow()
-                        .build())
-                .build();
-    }
-
-    private String getScheduler(com.juliusscript.rxannotation.Schedulers scheduler) {
-        String schedulerClass = Schedulers.class.getName();
-        switch (scheduler) {
-            case IO:
-                return schedulerClass + ".io()";
-            case COMPUTATION:
-                return schedulerClass + ".computation()";
-            case NEW_THREAD:
-                return schedulerClass + ".newThread()";
-            case SINGLE:
-                return schedulerClass + ".single()";
-            case TRAMPOLINE:
-                return schedulerClass + ".trampoline()";
-            case ANDROID_MAIN:
-                return "io.reactivex.android.schedulers.AndroidSchedulers.mainThread()";
-        }
-        return schedulerClass + ".newThread()";
-    }
-
-    private MethodSpec.Builder wrapWithDefer(MethodSpec.Builder builder, TypeSpec observableSource,
-                                             String subscribeOn, String observeOn) {
-        return builder.addStatement("return $T.defer($L).subscribeOn($N).observeOn($N)", Observable.class,
-                observableSource, subscribeOn, observeOn);
     }
 
     private void writeRxClass(String packageName, TypeSpec.Builder rxClassBuilder) {

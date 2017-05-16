@@ -1,4 +1,6 @@
-package com.juliusscript.rxannotation;
+package com.juliusscript.rxannotation.annotations;
+
+import com.juliusscript.rxannotation.Schedulers;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

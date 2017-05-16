@@ -1,4 +1,4 @@
-package com.juliusscript.rxannotation;
+package com.juliusscript.rxannotation.annotations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
