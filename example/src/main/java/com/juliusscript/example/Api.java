@@ -1,6 +1,7 @@
 package com.juliusscript.example;
 
 import com.juliusscript.rxannotation.annotations.RxClass;
+import com.juliusscript.rxannotation.annotations.RxCompletable;
 import com.juliusscript.rxannotation.annotations.RxMaybe;
 import com.juliusscript.rxannotation.annotations.RxObservable;
 import com.juliusscript.rxannotation.annotations.RxSingle;
@@ -16,6 +17,7 @@ import io.reactivex.BackpressureStrategy;
 @Singleton
 @RxClass
 public class Api {
+    private boolean completed;
 
     @RxObservable
     public String getValue(String whut) {
@@ -45,5 +47,10 @@ public class Api {
         } else {
             return 0;
         }
+    }
+
+    @RxCompletable
+    public void setCompleted() {
+        completed = true;
     }
 }

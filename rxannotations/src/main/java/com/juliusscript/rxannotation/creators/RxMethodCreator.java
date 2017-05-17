@@ -1,5 +1,6 @@
-package com.juliusscript.rxannotation;
+package com.juliusscript.rxannotation.creators;
 
+import com.juliusscript.rxannotation.Pair;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
@@ -24,13 +25,23 @@ public final class RxMethodCreator {
     public static Pair<MethodSpec.Builder, List<String>> createRxMethods(ExecutableElement executableElement, Class type) {
         String methodName = executableElement.getSimpleName().toString();
         TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        ClassName flowable = ClassName.get(type);
-        TypeName flowableReturn = ParameterizedTypeName.get(flowable, returnClass);
+        ClassName typeName = ClassName.get(type);
+        TypeName returnName = ParameterizedTypeName.get(typeName, returnClass);
+        return createReactiveMethod(executableElement, methodName, returnName);
+    }
 
+    public static Pair<MethodSpec.Builder, List<String>> createRxMethodsVoid(ExecutableElement executableElement, Class type) {
+        String methodName = executableElement.getSimpleName().toString();
+        TypeName returnType = TypeName.get(type);
+        return createReactiveMethod(executableElement, methodName, returnType);
+    }
+
+    private static Pair<MethodSpec.Builder, List<String>> createReactiveMethod(ExecutableElement executableElement,
+                                                                               String methodName, TypeName returnType) {
         //create new reactive method
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(methodName + "Rx")
                 .addModifiers(Modifier.PUBLIC)
-                .returns(flowableReturn);
+                .returns(returnType);
 
         List<String> parameters = new ArrayList<String>();
         for (VariableElement variableElement : executableElement.getParameters()) {

@@ -1,6 +1,7 @@
-package com.juliusscript.rxannotation;
+package com.juliusscript.rxannotation.creators;
 
-import com.juliusscript.rxannotation.annotations.RxObservable;
+import com.juliusscript.rxannotation.Pair;
+import com.juliusscript.rxannotation.annotations.RxMaybe;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -12,37 +13,31 @@ import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 
-import io.reactivex.Observable;
-import io.reactivex.ObservableEmitter;
-import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.Maybe;
+import io.reactivex.MaybeEmitter;
+import io.reactivex.MaybeOnSubscribe;
 
 /**
  * Created by Julius.
  */
-public final class RxObservableCreator {
 
-    public RxObservableCreator() {
+public final class RxMaybeCreator {
+
+    private RxMaybeCreator() {
     }
 
-    public static MethodSpec createRxObservableMethods(ExecutableElement executableElement) {
-        TypeName returnClass = ClassName.get(executableElement.getReturnType());
-        RxObservable rxObservable = executableElement.getAnnotation(RxObservable.class);
-        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Observable.class);
-        TypeSpec onSubscribe = buildObservable(executableElement, methodData.second);
+    public static MethodSpec createRxMaybeMethods(ExecutableElement executableElement) {
+        RxMaybe rxMaybe = executableElement.getAnnotation(RxMaybe.class);
+        Pair<MethodSpec.Builder, List<String>> methodData = RxMethodCreator.createRxMethods(executableElement, Maybe.class);
+        TypeSpec onSubscribe = buildMaybe(executableElement, methodData.second);
 
-        if (rxObservable.defer()) {
-            Creator.wrapWithDefer(methodData.first, Creator.buildCallable(returnClass, onSubscribe),
-                    Creator.getScheduler(rxObservable.subscribeOn()), Creator.getScheduler(rxObservable.observeOn()));
-        } else {
-            methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
-                    Observable.class, onSubscribe, Creator.getScheduler(rxObservable.subscribeOn()),
-                    Creator.getScheduler(rxObservable.observeOn()));
-
-        }
+        methodData.first.addStatement("return $T.create($L).subscribeOn($N).observeOn($N)",
+                Maybe.class, onSubscribe, Creator.getScheduler(rxMaybe.subscribeOn()),
+                Creator.getScheduler(rxMaybe.observeOn()));
         return methodData.first.build();
     }
 
-    private static TypeSpec buildObservable(ExecutableElement executableElement, List<String> parameters) {
+    private static TypeSpec buildMaybe(ExecutableElement executableElement, List<String> parameters) {
         String methodName = executableElement.getSimpleName().toString();
         TypeName returnClass = ClassName.get(executableElement.getReturnType());
 
@@ -55,19 +50,19 @@ public final class RxObservableCreator {
         }
         methodCall.append(")");
 
-        //anonymous observable creation
+        //anonymous maybe creation
         return TypeSpec.anonymousClassBuilder("")
-                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(ObservableOnSubscribe.class),
+                .addSuperinterface(ParameterizedTypeName.get(ClassName.get(MaybeOnSubscribe.class),
                         returnClass))
                 .addMethod(MethodSpec.methodBuilder("subscribe")
                         .addAnnotation(Override.class)
                         .addModifiers(Modifier.PUBLIC)
-                        .addParameter(ParameterizedTypeName.get(ClassName.get(ObservableEmitter.class),
+                        .addParameter(ParameterizedTypeName.get(ClassName.get(MaybeEmitter.class),
                                 returnClass), "emitter")
                         .beginControlFlow("try")
                         .addStatement(returnClass.toString() + " result = " + methodCall.toString())
                         .beginControlFlow("if (result !=null)")
-                        .addStatement("emitter.onNext(result)")
+                        .addStatement("emitter.onSuccess(result)")
                         .endControlFlow()
                         .endControlFlow()
                         .beginControlFlow("catch(Exception ex)")
@@ -79,5 +74,4 @@ public final class RxObservableCreator {
                         .build())
                 .build();
     }
-
 }

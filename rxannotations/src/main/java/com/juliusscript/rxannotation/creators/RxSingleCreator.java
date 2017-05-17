@@ -1,5 +1,6 @@
-package com.juliusscript.rxannotation;
+package com.juliusscript.rxannotation.creators;
 
+import com.juliusscript.rxannotation.Pair;
 import com.juliusscript.rxannotation.annotations.RxSingle;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;

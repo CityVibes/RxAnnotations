@@ -2,10 +2,16 @@ package com.juliusscript.rxannotation;
 
 import com.google.auto.service.AutoService;
 import com.juliusscript.rxannotation.annotations.RxClass;
+import com.juliusscript.rxannotation.annotations.RxCompletable;
 import com.juliusscript.rxannotation.annotations.RxFlowable;
 import com.juliusscript.rxannotation.annotations.RxMaybe;
 import com.juliusscript.rxannotation.annotations.RxObservable;
 import com.juliusscript.rxannotation.annotations.RxSingle;
+import com.juliusscript.rxannotation.creators.RxCompletableCreator;
+import com.juliusscript.rxannotation.creators.RxFlowableCreator;
+import com.juliusscript.rxannotation.creators.RxMaybeCreator;
+import com.juliusscript.rxannotation.creators.RxObservableCreator;
+import com.juliusscript.rxannotation.creators.RxSingleCreator;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
@@ -38,7 +44,7 @@ import javax.lang.model.util.ElementFilter;
 @AutoService(Processor.class)
 @SupportedAnnotationTypes({"com.juliusscript.rxannotation.annotations.RxObservable", "com.juliusscript.rxannotation.annotations.RxSingle",
         "com.juliusscript.rxannotation.annotations.RxFlowable", "com.juliusscript.rxannotation.annotations.RxClass",
-        "com.juliusscript.rxannotation.annotations.RxMaybe"})
+        "com.juliusscript.rxannotation.annotations.RxMaybe", "com.juliusscript.rxannotation.annotations.RxCompletable"})
 public class RxProcessor extends AbstractProcessor {
 
     @Override
@@ -63,10 +69,12 @@ public class RxProcessor extends AbstractProcessor {
         Collection<? extends Element> annotatedFlowableElements = roundEnvironment.getElementsAnnotatedWith(RxFlowable.class);
         Collection<? extends Element> annotatedObservableElements = roundEnvironment.getElementsAnnotatedWith(RxObservable.class);
         Collection<? extends Element> annotatedMaybeElements = roundEnvironment.getElementsAnnotatedWith(RxMaybe.class);
+        Collection<? extends Element> annotatedCompletableElements = roundEnvironment.getElementsAnnotatedWith(RxCompletable.class);
         List<ExecutableElement> observableTypes = ElementFilter.methodsIn(annotatedObservableElements);
         List<ExecutableElement> singleTypes = ElementFilter.methodsIn(annotatedSingleElements);
         List<ExecutableElement> flowableTypes = ElementFilter.methodsIn(annotatedFlowableElements);
         List<ExecutableElement> maybeTypes = ElementFilter.methodsIn(annotatedMaybeElements);
+        List<ExecutableElement> completableTypes = ElementFilter.methodsIn(annotatedCompletableElements);
         List<MethodSpec> methodSpecs = new ArrayList<MethodSpec>();
 
         for (ExecutableElement executableElement : observableTypes) {
@@ -80,6 +88,9 @@ public class RxProcessor extends AbstractProcessor {
         }
         for (ExecutableElement executableElement : maybeTypes) {
             methodSpecs.add(RxMaybeCreator.createRxMaybeMethods(executableElement));
+        }
+        for (ExecutableElement executableElement : completableTypes) {
+            methodSpecs.add(RxCompletableCreator.createRxCompletableMethods(executableElement));
         }
         return methodSpecs;
     }
