@@ -1,14 +1,14 @@
 # RxAnnotations: Annotations for RxJava
-Generating observables & singles using annotations.
+Generating reactiveX methods using annotations.
  
 # Getting started
 
 The first step is to include RxAnnotations into your project, for example, as a Gradle compile dependency:
 ```
-provided 'com.juliusscript.rxannotation:rxannotations:0.0.1'
-apt 'com.juliusscript.rxannotation:rxannotations:0.0.1'
+provided 'com.juliusscript.rxannotation:rxannotations:0.0.2'
+apt 'com.juliusscript.rxannotation:rxannotations:0.0.2'
 //or
-annotationProcessor 'com.juliusscript.rxannotation:rxannotations:0.0.1'
+annotationProcessor 'com.juliusscript.rxannotation:rxannotations:0.0.2'
 ```
 
 If you haven't yet include RxJava and/or RxAndroid:
@@ -22,7 +22,7 @@ As Maven dependency:
 <dependency>
   <groupId>com.juliusscript.rxannotation</groupId>
   <artifactId>rxannotations</artifactId>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <type>pom</type>
 </dependency>
 ```
@@ -31,6 +31,7 @@ As Maven dependency:
 @Singleton
 @RxClass
 public class Api {
+    private boolean completed;
 
     @RxObservable
     public String getValue(String whut) {
@@ -47,6 +48,25 @@ public class Api {
     @RxSingle
     public Float getFloat() {
         return 0.5f;
+    }
+    
+    @RxFlowable(backpressure = BackpressureStrategy.ERROR)
+    public Object getObject() {
+        return new Object();
+    }
+
+    @RxMaybe
+    public Integer maybe() {
+        if (BuildConfig.DEBUG) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    @RxCompletable
+    public void setCompleted() {
+        completed = true;
     }
 }
 ```
