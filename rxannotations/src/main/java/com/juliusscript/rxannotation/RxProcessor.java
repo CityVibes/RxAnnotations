@@ -1,6 +1,5 @@
 package com.juliusscript.rxannotation;
 
-import com.google.auto.service.AutoService;
 import com.juliusscript.rxannotation.annotations.RxClass;
 import com.juliusscript.rxannotation.annotations.RxCompletable;
 import com.juliusscript.rxannotation.annotations.RxFlowable;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.inject.Singleton;
@@ -41,7 +39,6 @@ import javax.lang.model.util.ElementFilter;
 /**
  * Created by Julius.
  */
-@AutoService(Processor.class)
 @SupportedAnnotationTypes({"com.juliusscript.rxannotation.annotations.RxObservable", "com.juliusscript.rxannotation.annotations.RxSingle",
         "com.juliusscript.rxannotation.annotations.RxFlowable", "com.juliusscript.rxannotation.annotations.RxClass",
         "com.juliusscript.rxannotation.annotations.RxMaybe", "com.juliusscript.rxannotation.annotations.RxCompletable"})
@@ -58,39 +55,34 @@ public class RxProcessor extends AbstractProcessor {
 
         for (Element typeElement : annotatedClassElements) {
             if (typeElement.getKind() == ElementKind.CLASS) {
-                createRxClass(typeElement, getMethodSpecs(roundEnvironment));
+                createRxClass(typeElement, getMethodSpecs(typeElement.getEnclosedElements()));
             }
         }
         return true;
     }
 
-    private List<MethodSpec> getMethodSpecs(RoundEnvironment roundEnvironment) {
-        Collection<? extends Element> annotatedSingleElements = roundEnvironment.getElementsAnnotatedWith(RxSingle.class);
-        Collection<? extends Element> annotatedFlowableElements = roundEnvironment.getElementsAnnotatedWith(RxFlowable.class);
-        Collection<? extends Element> annotatedObservableElements = roundEnvironment.getElementsAnnotatedWith(RxObservable.class);
-        Collection<? extends Element> annotatedMaybeElements = roundEnvironment.getElementsAnnotatedWith(RxMaybe.class);
-        Collection<? extends Element> annotatedCompletableElements = roundEnvironment.getElementsAnnotatedWith(RxCompletable.class);
-        List<ExecutableElement> observableTypes = ElementFilter.methodsIn(annotatedObservableElements);
-        List<ExecutableElement> singleTypes = ElementFilter.methodsIn(annotatedSingleElements);
-        List<ExecutableElement> flowableTypes = ElementFilter.methodsIn(annotatedFlowableElements);
-        List<ExecutableElement> maybeTypes = ElementFilter.methodsIn(annotatedMaybeElements);
-        List<ExecutableElement> completableTypes = ElementFilter.methodsIn(annotatedCompletableElements);
+    private List<MethodSpec> getMethodSpecs(List<? extends Element> elements) {
+        List<ExecutableElement> types = ElementFilter.methodsIn(elements);
         List<MethodSpec> methodSpecs = new ArrayList<MethodSpec>();
 
-        for (ExecutableElement executableElement : observableTypes) {
-            methodSpecs.add(RxObservableCreator.createRxObservableMethods(executableElement));
-        }
-        for (ExecutableElement executableElement : singleTypes) {
-            methodSpecs.add(RxSingleCreator.createRxSingleMethods(executableElement));
-        }
-        for (ExecutableElement executableElement : flowableTypes) {
-            methodSpecs.add(RxFlowableCreator.createRxFlowableMethods(executableElement));
-        }
-        for (ExecutableElement executableElement : maybeTypes) {
-            methodSpecs.add(RxMaybeCreator.createRxMaybeMethods(executableElement));
-        }
-        for (ExecutableElement executableElement : completableTypes) {
-            methodSpecs.add(RxCompletableCreator.createRxCompletableMethods(executableElement));
+        for (ExecutableElement executableElement : types) {
+            RxObservable rxObservable = executableElement.getAnnotation(RxObservable.class);
+            RxSingle rxSingle = executableElement.getAnnotation(RxSingle.class);
+            RxFlowable rxFlowable = executableElement.getAnnotation(RxFlowable.class);
+            RxMaybe rxMaybe = executableElement.getAnnotation(RxMaybe.class);
+            RxCompletable rxCompletable = executableElement.getAnnotation(RxCompletable.class);
+
+            if (rxSingle != null) {
+                methodSpecs.add(RxSingleCreator.createRxSingleMethods(executableElement));
+            } else if (rxFlowable != null) {
+                methodSpecs.add(RxFlowableCreator.createRxFlowableMethods(executableElement));
+            } else if (rxMaybe != null) {
+                methodSpecs.add(RxMaybeCreator.createRxMaybeMethods(executableElement));
+            } else if (rxObservable != null) {
+                methodSpecs.add(RxObservableCreator.createRxObservableMethods(executableElement));
+            } else if (rxCompletable != null) {
+                methodSpecs.add(RxCompletableCreator.createRxCompletableMethods(executableElement));
+            }
         }
         return methodSpecs;
     }
