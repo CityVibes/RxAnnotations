@@ -5,16 +5,16 @@ Generating reactiveX methods using annotations.
 
 The first step is to include RxAnnotations into your project, for example, as a Gradle compile dependency:
 ```
-provided 'com.juliusscript.rxannotation:rxannotations:0.0.2'
-apt 'com.juliusscript.rxannotation:rxannotations:0.0.2'
+provided 'com.juliusscript.rxannotation:rxannotations:0.0.3'
+apt 'com.juliusscript.rxannotation:rxannotations:0.0.3'
 //or
-annotationProcessor 'com.juliusscript.rxannotation:rxannotations:0.0.2'
+annotationProcessor 'com.juliusscript.rxannotation:rxannotations:0.0.3'
 ```
 
 If you haven't yet include RxJava and/or RxAndroid:
 ```
 compile 'io.reactivex.rxjava2:rxandroid:2.0.1'
-compile 'io.reactivex.rxjava2:rxjava:2.1.0'
+compile 'io.reactivex.rxjava2:rxjava:2.1.8'
 ```
 
 As Maven dependency:
@@ -22,7 +22,7 @@ As Maven dependency:
 <dependency>
   <groupId>com.juliusscript.rxannotation</groupId>
   <artifactId>rxannotations</artifactId>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <type>pom</type>
 </dependency>
 ```
